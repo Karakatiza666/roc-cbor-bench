@@ -1,18 +1,18 @@
-app [] { pkg: "../../../src/main.roc" }
+app [] { pkg: "../roc-cbor/src/main.roc" }
 
-# The Roc side of bench/compare. Usage: compare <case> <loops>
-# The inputs are the fixtures of bench/compare/run.py (written by bench/bench.roc `dump`), embedded at
+# The Roc side of roc-cbor-bench. Usage: compare <case> <loops>
+# The inputs are the fixtures of run.py (written by roc-cbor/bench/bench.roc `dump`), embedded at
 # build time, so that Roc parses the same bytes as the other languages and builds no input at setup.
 # The setup of an encode case parses the fixture into the value to encode (the same as the others).
-# The output is "case loops checksum"; the contract of each case is in bench/compare/README.md.
+# The output is "case loops checksum"; the contract of each case is in README.md.
 
 import pkg.Cbor
-import "../../../.cache/compare/fixtures/bytes.cbor" as bytes_cbor_c : List(U8)
-import "../../../.cache/compare/fixtures/records.cbor" as records_cbor_c : List(U8)
-import "../../../.cache/compare/fixtures/wide.cbor" as wide_cbor_c : List(U8)
-import "../../../.cache/compare/fixtures/dict.cbor" as dict_cbor_c : List(U8)
-import "../../../.cache/compare/fixtures/texts.cbor" as texts_cbor_c : List(U8)
-import "../../../.cache/compare/fixtures/deep.cbor" as deep_cbor_c : List(U8)
+import "../.cache/fixtures/bytes.cbor" as bytes_cbor_c : List(U8)
+import "../.cache/fixtures/records.cbor" as records_cbor_c : List(U8)
+import "../.cache/fixtures/wide.cbor" as wide_cbor_c : List(U8)
+import "../.cache/fixtures/dict.cbor" as dict_cbor_c : List(U8)
+import "../.cache/fixtures/texts.cbor" as texts_cbor_c : List(U8)
+import "../.cache/fixtures/deep.cbor" as deep_cbor_c : List(U8)
 
 Rec : { name : Str, id : U64, ok : Bool, score : F64, tags : List(Str) }
 

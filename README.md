@@ -1,22 +1,53 @@
-# bench/compare
+# roc-cbor-bench
+
+Cross-language CBOR benchmarks for [roc-cbor](https://github.com/Karakatiza666/roc-cbor): roc-cbor and CBOR
+libraries of Rust, Go, Python and Zig read and write the same fixtures.
+
+The harness was written by Luke Boswell in
+[roc-cbor PR #2](https://github.com/Karakatiza666/roc-cbor/pull/2) (its `bench/compare/` directory). It moved
+here, as it was, so that bench changes do not wait for the CI of roc-cbor, and roc-cbor needs no Rust, Go or
+Zig toolchain. The `dump` mode of `bench/bench.roc` that writes the fixtures stays in roc-cbor
+([PR #4](https://github.com/Karakatiza666/roc-cbor/pull/4)).
+
+License: [UPL 1.0](LICENSE), the same as roc-cbor.
+
+## roc-cbor is a git submodule
+
+`roc-cbor/` is a git submodule. Its commit is the roc-cbor that is compared: the fixtures come from its
+`bench/bench.roc dump`, and `roc/compare.roc` imports its `src/`. Clone with the submodule:
+
+```sh
+git clone --recursive https://github.com/Karakatiza666/roc-cbor-bench.git
+# or, in a clone without it:
+git submodule update --init
+```
+
+To compare another roc-cbor commit, check it out in `roc-cbor/` (or bump the submodule and commit it).
+
+The submodule points at the head commit of roc-cbor PR #4 (branch `bench-dump`), since the `dump` mode is not
+on roc-cbor `main` yet. When PR #4 is merged, bump the submodule to `main`.
+
+The Roc compiler must be the nightly that `roc-cbor/.roc-version` names. Give its path in `ROC`.
+
+## Usage
 
 A diagnostic for development: roc-cbor and CBOR libraries of other languages read and write the same fixtures,
 so that a slow path or a compiler issue shows up (time per op, throughput, CPU, peak RSS). The other libraries are
 reference points, not a contest, and no result is committed.
 
 ```sh
-ROC=/path/to/roc python3 bench/compare/run.py              # measure Roc, reuse the cached results of the others
-ROC=/path/to/roc python3 bench/compare/run.py --refresh    # measure all again (needs cargo, go, zig, cc, pip)
-python3 bench/compare/run.py --only roc go-fxamacker --cases records_parse dict_parse --runs 9
+ROC=/path/to/roc python3 run.py              # measure Roc, reuse the cached results of the others
+ROC=/path/to/roc python3 run.py --refresh    # measure all again (needs cargo, go, zig, cc, pip)
+python3 run.py --only roc go-fxamacker --cases records_parse dict_parse --runs 9
 ```
 
-The report is printed and written to `.cache/compare/report.md`.
+The report is printed and written to `.cache/report.md`.
 
 ## Implementations
 
 | Impl | Library | Typed read and write | Dynamic value | Source |
 | --- | --- | --- | --- | --- |
-| `roc` | roc-cbor (this repository) | derived from the Roc type | `Cbor.Value` | `roc/compare.roc` |
+| `roc` | roc-cbor (the submodule) | derived from the Roc type | `Cbor.Value` | `roc/compare.roc` |
 | `rust-ciborium` | [ciborium](https://crates.io/crates/ciborium) 0.2 | serde derive | `ciborium::Value` | `rust/src/main.rs` |
 | `rust-cbor4ii` | [cbor4ii](https://crates.io/crates/cbor4ii) 1.2 | serde derive | `cbor4ii::core::Value` | `rust/src/main.rs` |
 | `go-fxamacker` | [fxamacker/cbor](https://github.com/fxamacker/cbor) v2 | struct tags (reflection) | `interface{}` | `go/main.go` |
@@ -27,7 +58,7 @@ Versions are pinned by `rust/Cargo.lock`, `go/go.sum`, `python/requirements.txt`
 
 ## Method
 
-1. `bench/bench.roc dump <fixture>` writes each input as hex. `run.py` writes them to `.cache/compare/fixtures/`.
+1. `roc-cbor/bench/bench.roc dump <fixture>` writes each input as hex. `run.py` writes them to `.cache/fixtures/`.
    Each implementation parses these bytes, so each side reads the same input (Roc embeds them with
    `import "…" as x : List(U8)` in `roc/compare.roc`; the others read the file at start).
 2. Each implementation is a program `<impl> <case> <loops> [fixture_dir]` that prints `case loops checksum`.
@@ -63,11 +94,11 @@ Versions are pinned by `rust/Cargo.lock`, `go/go.sum`, `python/requirements.txt`
 
 ## Caching
 
-`.cache/compare/results/<impl>.json` holds the last measurement of each other language (local, not committed),
+`.cache/results/<impl>.json` holds the last measurement of each other language (local, not committed),
 so that a later run of `run.py` measures only Roc. A cached result is used when its `key` matches: a hash of the
 fixtures, of the source and lock files of the implementation, and of the CPU model. A change of the
-fixtures (a change of `bench/bench.roc` or of the writer), of the code of that language, or another CPU
-measures it again. Roc writes its result to `.cache/compare/roc.json`. Cached numbers are of one machine
+fixtures (a change of `roc-cbor/bench/bench.roc` or of the writer), of the code of that language, or another CPU
+measures it again. Roc writes its result to `.cache/roc.json`. Cached numbers are of one machine
 (the `cpu` field): compare Roc with them only on that machine, or run `--refresh`.
 
 ## Differences between the libraries

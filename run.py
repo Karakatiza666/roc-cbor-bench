@@ -1,14 +1,14 @@
-"""bench/compare: a diagnostic for roc-cbor, with CBOR libraries of Rust, Go, Python and Zig as reference points.
+"""roc-cbor-bench: a diagnostic for roc-cbor, with CBOR libraries of Rust, Go, Python and Zig as reference points.
 
 It is a tool to find slow paths and compiler issues, not a claim: its results are not committed.
 
-Usage: ROC=/path/to/roc python3 bench/compare/run.py [--refresh] [--only IMPL ...] [--cases CASE ...]
+Usage: ROC=/path/to/roc python3 run.py [--refresh] [--only IMPL ...] [--cases CASE ...]
        [--runs N] [--ms MS] [--no-build]
 
 Each implementation is a program `<impl> <case> <loops>` that prints "case loops checksum". The input of
-each case is a fixture written by the Roc bench (bench/bench.roc `dump`), so each side reads the same
-bytes. The runner times each program from the outside, the same way for each language (scripts/bench.sh
-does the same for Roc alone):
+each case is a fixture written by the Roc bench of roc-cbor (roc-cbor/bench/bench.roc `dump`), so each
+side reads the same bytes. The runner times each program from the outside, the same way for each language
+(roc-cbor's scripts/bench.sh does the same for Roc alone):
 
     ms per op   = (median wall time of runs with N loops - median of runs with 0 loops) / N
     cpu per op  = the same with user + sys CPU time (more than ms per op when a GC runs on other threads)
@@ -17,11 +17,11 @@ does the same for Roc alone):
     op RSS      = peak RSS of a run with 1 loop - base RSS (the memory of one op at its peak)
     peak RSS N  = peak RSS of the run with N loops (growth over op RSS: a GC heap or a leak)
 
-The results of the other languages are cached in .cache/compare/results/<impl>.json (not committed), since
+The results of the other languages are cached in .cache/results/<impl>.json (not committed), since
 they do not change with roc-cbor. A cached result is used when its key matches: the hash of the fixtures, of the
 source and lock files of the implementation, and the CPU model. --refresh measures them again. Roc is
-measured on each run; its result goes to .cache/compare/roc.json. The report (Markdown) is printed and
-written to .cache/compare/report.md.
+measured on each run; its result goes to .cache/roc.json. The report (Markdown) is printed and
+written to .cache/report.md.
 """
 
 import argparse
@@ -36,9 +36,11 @@ import subprocess
 import sys
 import time
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-HERE = os.path.join(ROOT, "bench", "compare")
-WORK = os.path.join(ROOT, ".cache", "compare")
+# This repository; roc-cbor is its git submodule roc-cbor/ (the commit that is measured).
+ROOT = os.path.dirname(os.path.abspath(__file__))
+HERE = ROOT
+ROC_CBOR = os.path.join(ROOT, "roc-cbor")
+WORK = os.path.join(ROOT, ".cache")
 FIX = os.path.join(WORK, "fixtures")
 RESULTS = os.path.join(WORK, "results")
 ROC = os.environ.get("ROC", "roc")
@@ -159,13 +161,13 @@ def build_zig():
 
 
 def build_roc_dump():
-    """bench/bench.roc: its `dump` mode writes the fixtures."""
-    sh([ROC, "build", "--opt=speed", "bench/bench.roc", f"--output={os.path.join(WORK, 'roc-dump.bin')}"], env=ROC_ENV)
+    """roc-cbor/bench/bench.roc: its `dump` mode writes the fixtures."""
+    sh([ROC, "build", "--opt=speed", "roc-cbor/bench/bench.roc", f"--output={os.path.join(WORK, 'roc-dump.bin')}"], env=ROC_ENV)
 
 
 def build_roc():
-    """bench/compare/roc/compare.roc: the cases, with the fixtures embedded (build after write_fixtures)."""
-    sh([ROC, "build", "--opt=speed", "bench/compare/roc/compare.roc", f"--output={os.path.join(WORK, 'roc-compare.bin')}"],
+    """roc/compare.roc: the cases, with the fixtures embedded (build after write_fixtures)."""
+    sh([ROC, "build", "--opt=speed", "roc/compare.roc", f"--output={os.path.join(WORK, 'roc-compare.bin')}"],
        env=ROC_ENV)
 
 
@@ -176,7 +178,7 @@ CARGO_V = r'name = "{}"\nversion = "([^"]+)"'
 IMPLS = [
     Impl("roc", "Roc", "roc-cbor", [], build_roc,
          lambda c, n: [os.path.join(WORK, "roc-compare.bin"), c, str(n)],
-         lambda: first_line(["git", "-C", ROOT, "describe", "--tags", "--always", "--dirty"]),
+         lambda: first_line(["git", "-C", ROC_CBOR, "describe", "--tags", "--always", "--dirty"]),
          lambda: first_line([ROC, "version"])),
     Impl("rust-ciborium", "Rust", "ciborium", ["rust/src/main.rs", "rust/Cargo.lock"], build_rust,
          lambda c, n: [RUST_BIN, "ciborium", c, str(n), FIX],
@@ -215,7 +217,7 @@ def build_rusage():
 
 
 def run_once(impl, case, loops):
-    """One run through bench/compare/rusage.c: (wall ns, cpu ns, max RSS KiB, checksum)."""
+    """One run through rusage.c: (wall ns, cpu ns, max RSS KiB, checksum)."""
     env = dict(os.environ)
     env.update(impl.env)
     p = subprocess.run([RUSAGE] + impl.argv(case, loops), capture_output=True, env=env, cwd=ROOT)
@@ -399,6 +401,8 @@ def main():
     os.makedirs(RESULTS, exist_ok=True)
     impls = [i for i in IMPLS if not a.only or i.name in a.only]
 
+    if not os.path.exists(os.path.join(ROC_CBOR, "bench", "bench.roc")):
+        raise SystemExit("roc-cbor/ is empty: run `git submodule update --init` (or clone with --recursive)")
     build_rusage()
     roc_bin = os.path.join(WORK, "roc-compare.bin")
     if a.no_build and os.path.exists(roc_bin):

@@ -1,6 +1,6 @@
-//! The Zig side of bench/compare. Usage: cbor-bench <case> <loops> <fixture_dir>
+//! The Zig side of roc-cbor-bench. Usage: cbor-bench <case> <loops> <fixture_dir>
 //! Library: zbor (comptime-derived parse and stringify of Zig types). The contract of each case is in
-//! bench/compare/README.md. Each loop parses into an arena on the C allocator, freed after the loop
+//! README.md. Each loop parses into an arena on the C allocator, freed after the loop
 //! (the usual Zig pattern: zbor has no free function for a parsed value).
 //! Not supported by zbor, exit 3 (the runner records n/a): a dynamic value tree (records_value,
 //! map_value, deep_*: zbor's DataItem is a checked view, not a tree), and nesting deeper than 128.

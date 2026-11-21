@@ -1,4 +1,4 @@
-module roc-cbor/bench/compare/go
+module roc-cbor-bench/go
 
 go 1.26.5
 

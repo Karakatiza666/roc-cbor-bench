@@ -1,0 +1,8 @@
+# Outputs of run.py: binaries, fixtures, cached results, the report, tool caches.
+.cache/
+# Temporary files.
+.tmp/
+# Packages that zig build fetches next to build.zig.zon.
+zig/zig-pkg/
+zig/.zig-cache/
+zig/zig-out/

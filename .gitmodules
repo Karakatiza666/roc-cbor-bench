@@ -1,0 +1,3 @@
+[submodule "roc-cbor"]
+	path = roc-cbor
+	url = https://github.com/Karakatiza666/roc-cbor.git

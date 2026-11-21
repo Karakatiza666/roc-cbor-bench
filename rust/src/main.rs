@@ -1,5 +1,5 @@
-//! The Rust side of bench/compare. Usage: cbor-bench <lib> <case> <loops> <fixture_dir>
-//! lib: ciborium | cbor4ii. The contract of each case is in bench/compare/README.md.
+//! The Rust side of roc-cbor-bench. Usage: cbor-bench <lib> <case> <loops> <fixture_dir>
+//! lib: ciborium | cbor4ii. The contract of each case is in README.md.
 //! The input of each case is a fixture written by the Roc bench (the same bytes for each language).
 //! Setup (read the fixture, decode the value of an encode case) is not timed: the runner subtracts a
 //! run with 0 loops. The output is "case loops checksum", so that the work is not removed.

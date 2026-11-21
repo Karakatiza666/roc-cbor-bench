@@ -1,5 +1,5 @@
-// The Go side of bench/compare. Usage: cbor-bench <case> <loops> <fixture_dir>
-// Library: github.com/fxamacker/cbor/v2. The contract of each case is in bench/compare/README.md.
+// The Go side of roc-cbor-bench. Usage: cbor-bench <case> <loops> <fixture_dir>
+// Library: github.com/fxamacker/cbor/v2. The contract of each case is in README.md.
 package main
 
 import (

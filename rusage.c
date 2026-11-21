@@ -1,6 +1,6 @@
 // rusage: run a command and print its wall time, CPU time and peak RSS to stderr as the last line:
 //   "rusage wall_ns=<n> cpu_ns=<n> maxrss_kib=<n> status=<exit code>"
-// bench/compare/run.py runs each benchmark through it. Why not os.wait4 in Python: Linux keeps the peak
+// run.py runs each benchmark through it. Why not os.wait4 in Python: Linux keeps the peak
 // RSS of the forked parent in the child across exec, so a child of a 25 MB Python reports at least 25 MB.
 // This process is small, so the peak RSS of its child is the peak of the benchmark itself.
 #include <stdio.h>

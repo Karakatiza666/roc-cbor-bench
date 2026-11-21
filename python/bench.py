@@ -1,8 +1,8 @@
-"""The Python side of bench/compare. Usage: python -I bench.py <case> <loops> <fixture_dir>
+"""The Python side of roc-cbor-bench. Usage: python -I bench.py <case> <loops> <fixture_dir>
 
 Library: cbor2 (its compiled decoder and encoder). Python has no typed reader: a "typed" parse case is
 cbor2.loads plus the build of the Python objects a program would use (a slotted Rec for each record).
-The contract of each case is in bench/compare/README.md.
+The contract of each case is in README.md.
 """
 
 import sys
