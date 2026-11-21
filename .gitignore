@@ -6,3 +6,4 @@
 zig/zig-pkg/
 zig/.zig-cache/
 zig/zig-out/
+__pycache__/

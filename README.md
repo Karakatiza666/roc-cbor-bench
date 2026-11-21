@@ -27,7 +27,8 @@ To compare another roc-cbor commit, check it out in `roc-cbor/` (or bump the sub
 The submodule points at the head commit of roc-cbor PR #4 (branch `bench-dump`), since the `dump` mode is not
 on roc-cbor `main` yet. When PR #4 is merged, bump the submodule to `main`.
 
-The Roc compiler must be the nightly that `roc-cbor/.roc-version` names. Give its path in `ROC`.
+The Roc compiler must be the nightly that `roc-cbor/.roc-version` names. Give its path in `ROC` (default:
+`roc` on `PATH`). `run.py` warns when `roc version` is another nightly.
 
 ## Usage
 
@@ -37,11 +38,28 @@ reference points, not a contest, and no result is committed.
 
 ```sh
 ROC=/path/to/roc python3 run.py              # measure Roc, reuse the cached results of the others
-ROC=/path/to/roc python3 run.py --refresh    # measure all again (needs cargo, go, zig, cc, pip)
-python3 run.py --only roc go-fxamacker --cases records_parse dict_parse --runs 9
+ROC=/path/to/roc python3 run.py --refresh    # measure all again
+ROC=/path/to/roc python3 run.py --only roc go-fxamacker --cases records_parse dict_parse --runs 9
 ```
 
-The report is printed and written to `.cache/report.md`.
+The report is printed and written to `.cache/report.md`. Each run needs `ROC` (the fixtures come from
+roc-cbor) and a C compiler (`cc`, or `CC`) for `rusage.c`. The other toolchains are needed only for their
+implementation; one that is missing, or whose build fails, is skipped with a message:
+
+| Impl | Needs |
+| --- | --- |
+| `rust-*` | `cargo` and `rustc` (`cargo build --locked`) |
+| `go-fxamacker` | `go` 1.26.5 or later. `run.py` sets `GOTOOLCHAIN=local`, so an older `go` fails instead of downloading a toolchain. |
+| `python-cbor2` | `pip` of the Python that runs `run.py`, or `uv`. cbor2 is installed from its wheels with `--require-hashes --only-binary :all:` (no sdist build, no pip cache) into `.cache/pylib`, again when `python/requirements.txt` changes. |
+| `zig-zbor` | `zig` 0.17.1 or later |
+
+Downloads (crates, Go modules, the cbor2 wheel, zbor) are pinned by `rust/Cargo.lock`, `go/go.sum`,
+`python/requirements.txt` (sha256) and `zig/build.zig.zon` (hash). The Go module and build caches, the Zig
+cache, the Roc cache and temporary files (`TMPDIR`) are under `.cache/`. Each build may take
+30 minutes and each run of a benchmark `--timeout` seconds (default 120).
+
+Peak RSS comes from `ru_maxrss`: KiB on Linux, bytes on macOS (`rusage.c` scales it). The harness is tested
+on Linux.
 
 ## Implementations
 
@@ -63,12 +81,19 @@ Versions are pinned by `rust/Cargo.lock`, `go/go.sum`, `python/requirements.txt`
    `import "…" as x : List(U8)` in `roc/compare.roc`; the others read the file at start).
 2. Each implementation is a program `<impl> <case> <loops> [fixture_dir]` that prints `case loops checksum`.
    The setup (the fixture; for an encode case, the parse of the fixture into the value to encode) is not
-   timed. Exit 3 means the library cannot do the case (n/a).
+   timed. Exit 3 means the library cannot do the case (n/a). Exit 4 means the setup parse failed.
+   `<impl> <case> check [fixture_dir]` prints the CBOR of the result of one op as hex: the parsed value
+   encoded again with the same library, or the output of one encode.
 3. Each run goes through `rusage.c` (fork, exec, `wait4`): wall time, user + sys CPU, peak RSS.
    Not `os.wait4` from Python: Linux keeps the peak RSS of the forked parent in the child across `exec`.
-4. A run with 1 loop checks the checksum (the item count of a parse, or the output length of an encode).
-   Then: the median of `--runs` runs with 0 loops, a loop count for about `--ms` of work, and the median
-   of `--runs` runs with that count.
+4. The check: `run.py` decodes the output of `check` and compares it with the decoded fixture (for
+   `unknown_parse`, each record with its 5 fields). Maps compare with their entries in any order, and
+   1, 1.0 and `true` are different values. A float of any width is equal to the same number.
+   Then each run must print `loops` x the checksum of one op: the item count of a typed parse, 1 for a
+   dynamic value, the output length of an encode. A failed parse adds 2^40 to the checksum, so it cannot
+   pass. A case that fails a check is `wrong` in the report (with the reason) and is not timed.
+5. The timed runs: the median of 3 runs with 1 loop (memory of one op), the median of `--runs` runs with
+   0 loops, a loop count for about `--ms` of work, and the median of `--runs` runs with that count.
 
 | Metric | Definition |
 | --- | --- |
@@ -96,8 +121,9 @@ Versions are pinned by `rust/Cargo.lock`, `go/go.sum`, `python/requirements.txt`
 
 `.cache/results/<impl>.json` holds the last measurement of each other language (local, not committed),
 so that a later run of `run.py` measures only Roc. A cached result is used when its `key` matches: a hash of the
-fixtures, of the source and lock files of the implementation, and of the CPU model. A change of the
-fixtures (a change of `roc-cbor/bench/bench.roc` or of the writer), of the code of that language, or another CPU
+fixtures, of the source and lock files of the implementation, of its toolchain version (`rustc --version`,
+`go version`, the Python version, `zig version`) and of the CPU model. A change of the fixtures (a change of
+`roc-cbor/bench/bench.roc` or of the writer), of the code or toolchain of that language, or another CPU
 measures it again. Roc writes its result to `.cache/roc.json`. Cached numbers are of one machine
 (the `cpu` field): compare Roc with them only on that machine, or run `--refresh`.
 
@@ -115,3 +141,6 @@ These hold for the inputs here. They are the reasons a column is not the same wo
 | cbor4ii reads an `f64` only from an 8-byte float | A record with the f16 `score` of preferred serialization fails. `Rec.score` uses `deserialize_with` that takes each float width. |
 | Float width on write | roc-cbor, ciborium and Go (`ShortestFloat16`) write the shortest float (474,635 bytes for `records_encode`). cbor4ii, cbor2 and zbor write 8-byte floats (518,613 bytes). |
 | Garbage collection | Go and Python free with a GC; their CPU per op can be above the wall time, and their peak RSS grows with N. |
+| Map key order on write | No library sorts map keys here. roc-cbor writes the fields of a record in the order of their names (`id, name, ok, score, tags`), and a `Dict` or a `Cbor.Value` map in its own order (`key_order: Given`, the default; `Sorted`, the order of RFC 8949 4.2.1, is an option that is not used here). serde (ciborium, cbor4ii) and zbor write the order of the struct fields, the same order for `Rec`. Go writes struct fields in their order, and a Go map in a random order (`SortNone`, the default). cbor2 writes a dict in its insertion order. The check compares maps in any order. |
+| The input in memory | Roc embeds the fixtures in its binary, and its pages come in when an op reads them. The others read the fixture file at start, so it is in their base RSS. So Base RSS and Memory of one op are not like for like: Roc's base RSS is lower, and its memory of one op is higher by up to the fixture size (1.4 MiB). |
+| Strings of a parse | roc-cbor's `Cbor.Bytes` is a slice of the input. Each other target copies each byte string and text: serde `String`, `ByteBuf` and `Value`, Go `string` and `[]byte`, cbor2, and zbor (`parse` of a `[]const u8` allocates a copy in the arena; it does not borrow from the input). So `records_*`, `text_parse` and `dict_parse` of zbor do the same copying as the others. |

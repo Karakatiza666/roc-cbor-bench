@@ -33,6 +33,12 @@ int main(int argc, char **argv) {
     long long cpu = (ru.ru_utime.tv_sec + ru.ru_stime.tv_sec) * 1000000000LL +
                     (ru.ru_utime.tv_usec + ru.ru_stime.tv_usec) * 1000LL;
     int code = WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status);
-    fprintf(stderr, "\nrusage wall_ns=%lld cpu_ns=%lld maxrss_kib=%ld status=%d\n", wall, cpu, ru.ru_maxrss, code);
+    // ru_maxrss is in KiB on Linux, and in bytes on macOS.
+#ifdef __APPLE__
+    long maxrss_kib = ru.ru_maxrss / 1024;
+#else
+    long maxrss_kib = ru.ru_maxrss;
+#endif
+    fprintf(stderr, "\nrusage wall_ns=%lld cpu_ns=%lld maxrss_kib=%ld status=%d\n", wall, cpu, maxrss_kib, code);
     return code;
 }

@@ -1,8 +1,10 @@
-//! The Rust side of roc-cbor-bench. Usage: cbor-bench <lib> <case> <loops> <fixture_dir>
+//! The Rust side of roc-cbor-bench. Usage: cbor-bench <lib> <case> <loops | check> <fixture_dir>
 //! lib: ciborium | cbor4ii. The contract of each case is in README.md.
 //! The input of each case is a fixture written by the Roc bench (the same bytes for each language).
 //! Setup (read the fixture, decode the value of an encode case) is not timed: the runner subtracts a
-//! run with 0 loops. The output is "case loops checksum", so that the work is not removed.
+//! run with 0 loops. The output is "case loops checksum", so that the work is not removed. A failed parse adds
+//! FAIL to the checksum. `check` prints the CBOR of the result of one op as hex (the parsed value encoded
+//! again, or the output of an encode); run.py compares it with the fixture.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -146,6 +148,37 @@ impl<'de> cbor4ii::core::dec::Read<'de> for DeepReader<'de> {
     }
 }
 
+/// What a failed parse adds to the checksum (the same in each language).
+const FAIL: u64 = 1 << 40;
+
+/// The setup of a case: a parse that must work. Exit 4 when it does not.
+fn need<T>(o: Option<T>) -> T {
+    o.unwrap_or_else(|| {
+        eprintln!("the parse of the fixture failed");
+        std::process::exit(4)
+    })
+}
+
+fn hex(b: &[u8]) -> String {
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+/// The CBOR of the result of one op of a case: the parsed value encoded again, or the output of an encode.
+fn check<L: Lib>(case: &str, bytes: &[u8]) -> Vec<u8> {
+    match case {
+        "bytes_encode" | "bytes_parse" => L::ser(&need(L::de::<Blob>(bytes))),
+        "records_encode" | "records_parse" | "unknown_parse" => {
+            L::ser(&need(L::de::<Vec<Rec>>(bytes)))
+        }
+        "dict_parse" => L::ser(&need(L::de::<HashMap<String, u64>>(bytes))),
+        "text_parse" => L::ser(&need(L::de::<Vec<String>>(bytes))),
+        "records_value" | "map_value" | "deep_parse" | "deep_encode" => {
+            L::ser_value(&need(L::de_value(bytes)))
+        }
+        _ => unreachable!(),
+    }
+}
+
 fn repeat(loops: u64, mut work: impl FnMut() -> u64) -> u64 {
     let mut sum = 0u64;
     for _ in 0..loops {
@@ -156,15 +189,15 @@ fn repeat(loops: u64, mut work: impl FnMut() -> u64) -> u64 {
 
 fn run<L: Lib>(case: &str, loops: u64, bytes: Vec<u8>) -> u64 {
     let bytes = black_box(bytes);
-    let len_or = |o: Option<usize>| o.map(|n| n as u64).unwrap_or(1_000_000);
+    let len_or = |o: Option<usize>| o.map_or(FAIL, |n| n as u64);
     match case {
         "bytes_encode" => {
-            let b: Blob = L::de(&bytes).unwrap();
+            let b: Blob = need(L::de(&bytes));
             repeat(loops, || L::ser(&b).len() as u64)
         }
         "bytes_parse" => repeat(loops, || len_or(L::de::<Blob>(&bytes).map(|b| b.len()))),
         "records_encode" => {
-            let rs: Vec<Rec> = L::de(&bytes).unwrap();
+            let rs: Vec<Rec> = need(L::de(&bytes));
             repeat(loops, || L::ser(&rs).len() as u64)
         }
         "records_parse" | "unknown_parse" => {
@@ -175,10 +208,10 @@ fn run<L: Lib>(case: &str, loops: u64, bytes: Vec<u8>) -> u64 {
         }),
         "text_parse" => repeat(loops, || len_or(L::de::<Vec<String>>(&bytes).map(|t| t.len()))),
         "records_value" | "map_value" | "deep_parse" => {
-            repeat(loops, || L::de_value(&bytes).is_some() as u64)
+            repeat(loops, || L::de_value(&bytes).map_or(FAIL, |_| 1))
         }
         "deep_encode" => {
-            let v = L::de_value(&bytes).unwrap();
+            let v = need(L::de_value(&bytes));
             repeat(loops, || L::ser_value(&v).len() as u64)
         }
         _ => unreachable!(),
@@ -188,12 +221,27 @@ fn run<L: Lib>(case: &str, loops: u64, bytes: Vec<u8>) -> u64 {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 5 {
-        eprintln!("usage: cbor-bench <ciborium|cbor4ii> <case> <loops> <fixture_dir>");
+        eprintln!("usage: cbor-bench <ciborium|cbor4ii> <case> <loops | check> <fixture_dir>");
         std::process::exit(2);
     }
     let (lib, case, dir) = (&args[1], &args[2], &args[4]);
-    let loops: u64 = args[3].parse().unwrap();
     let bytes = fixture(dir, fixture_of(case));
+    if args[3] == "check" {
+        let out = match lib.as_str() {
+            "ciborium" => check::<Ciborium>(case, &bytes),
+            "cbor4ii" => check::<Cbor4ii>(case, &bytes),
+            _ => {
+                eprintln!("unknown lib: {lib}");
+                std::process::exit(2)
+            }
+        };
+        println!("{}", hex(&out));
+        return;
+    }
+    let loops: u64 = args[3].parse().unwrap_or_else(|_| {
+        eprintln!("bad loop count: {}", args[3]);
+        std::process::exit(2)
+    });
     let sum = match lib.as_str() {
         "ciborium" => run::<Ciborium>(case, loops, bytes),
         "cbor4ii" => run::<Cbor4ii>(case, loops, bytes),
