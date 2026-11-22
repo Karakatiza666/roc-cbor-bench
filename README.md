@@ -24,8 +24,8 @@ git submodule update --init
 
 To compare another roc-cbor commit, check it out in `roc-cbor/` (or bump the submodule and commit it).
 
-The submodule points at the head commit of roc-cbor PR #4 (branch `bench-dump`), since the `dump` mode is not
-on roc-cbor `main` yet. When PR #4 is merged, bump the submodule to `main`.
+The submodule points at a commit of roc-cbor `main` (the merge of
+[PR #4](https://github.com/Karakatiza666/roc-cbor/pull/4), which added the `dump` mode).
 
 The Roc compiler must be the nightly that `roc-cbor/.roc-version` names. Give its path in `ROC` (default:
 `roc` on `PATH`). `run.py` warns when `roc version` is another nightly.
